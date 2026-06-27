@@ -19,6 +19,10 @@ class Random {
         return this.range(value - range, value + range)
     }
 
+    static boolean(trueFrac = 0.5) {
+        return this.unit() < trueFrac
+    }
+
     static uniformElt(list) {
         return list[this.only(0, list.length - 1)]
     }
@@ -128,9 +132,8 @@ class Grabber {
         this.sprite.visible = false
         this.mode = Grab.INACTIVE
         this.health = 0
-        this.p0 = null
-        this.p1 = null
-        this.curve = null
+        let x = new Phaser.Math.Vector2()
+        this.curve = new Phaser.Curves.CubicBezier(x, x, x, x)
         this.t = 0
         this.speed = 1
         this.targetEgg = null
@@ -139,11 +142,12 @@ class Grabber {
     activate() {
         this.mode = Grab.SWOOPING
         this.sprite.visible = true
-        let x = Random.range(0, config.scale.width)
-        this.p0 = new Phaser.Math.Vector2(x, -30)
-        this.p1 = new Phaser.Math.Vector2(x, 30)
-        this.sprite.x = this.p0.x
-        this.sprite.y = this.p0.y
+        this.curve.p0.x = Random.range(0, config.scale.width)
+        this.curve.p0.y = -30
+        this.curve.p1.x = this.curve.p0.x
+        this.curve.p1.y = 30
+        this.sprite.x = this.curve.p0.x
+        this.sprite.y = this.curve.p0.y
         this.sprite.clearTint()
         this.health = Grab.baseHealth
         this.targetEgg = null
@@ -166,21 +170,23 @@ class Grabber {
     }
 
     continueSwoop() {
-        this.p2 = this.randomPoint(80, 50)
-        this.p3 = this.randomPoint(50, 20)
+        this.curve.p2 = this.randomPoint(80, 50)
+        this.curve.p3 = this.randomPoint(50, 20)
         this.t = 0
     }
 
     trackTargetEgg() {
         this.continueSwoop()
-        this.p3.x = EggControl.eggX(this.targetEgg)
+        this.curve.p3.x = EggControl.eggX(this.targetEgg)
         this.mode = Grab.TRACKING
         console.log("tracking " + this.index)
     }
 
     nextDestination() {
-        this.p0 = this.p3
-        this.p1 = this.randomPoint(80, 50)
+        let dir = this.curve.p3.clone().subtract(this.curve.p2)
+        dir.scale(Random.centered() + 1).add(this.curve.p3)
+        this.curve.p0 = this.curve.p3
+        this.curve.p1 = dir
         if (this.mode == Grab.TRACKING) {
             this.mode = Grab.LOCKED
         } else if (this.targetEgg != null) {
@@ -205,7 +211,7 @@ class Grabber {
     move(delta) {
         if (this.mode == Grab.LOCKED) {
             this.sprite.y += Grab.descendSpeed * delta
-            if (this.sprite.y > config.scale.height - 40) {
+            if (this.sprite.y > config.scale.height - 20) {
                 this.mode = Grab.GRABBED
             }
         } else if (this.mode == Grab.GRABBED) {
@@ -218,8 +224,9 @@ class Grabber {
             }
         } else {
             this.t += Grab.dt * delta * this.speed
-            this.sprite.x = this.p0.x + this.t * (this.p3.x - this.p0.x)
-            this.sprite.y = this.p0.y + this.t * (this.p3.y - this.p0.y)
+            let pos = this.curve.getPoint(this.t)
+            this.sprite.x = pos.x
+            this.sprite.y = pos.y
             if (this.t > 1) {
                 this.nextDestination()
             }
@@ -236,6 +243,7 @@ class GrabberControl {
         this.spawnTime = Grab.spawnTime
         this.lockTime = Grab.lockTime
         this.hitIndex = -1
+        this.graphics = world.add.graphics()
     }
 
     traceRay(rayX) {
@@ -278,8 +286,11 @@ class GrabberControl {
 
     update(delta) {
         var inactiveIndex = -1
+        this.graphics.clear()
+        this.graphics.lineStyle(2, 0x663366, 1)
         for (let i = 0; i < this.grabbers.length; i++) {
             let grabber = this.grabbers[i]
+            grabber.curve.draw(this.graphics)
             if (grabber.mode == Grab.INACTIVE) {
                 inactiveIndex = i
             } else if (i == this.hitIndex) {
@@ -319,7 +330,7 @@ class EnemyControl {
     }
 
     traceRay() {
-        let gHit = this.grabbers.traceRay(gs.gun.x)
+        let gHit = this.grabbers.traceRay(gunControl.gun.x)
         return gHit
     }
 
@@ -383,8 +394,8 @@ class GunControl {
         this.graphics.clear()
         if (draw) {
             let color = Random.biasedElt(p.laserColor)
-            let b = Random.unit()
-            this.graphics.lineStyle(b > 0.8 ? 3 : 1, color, 1)
+            let thick = Random.boolean(0.2)
+            this.graphics.lineStyle(thick ? 3 : 1, color, 1)
             this.graphics.lineBetween(this.gun.x, this.gun.y + 5, this.gun.x, this.hitY)
         }
     }
