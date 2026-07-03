@@ -1,32 +1,93 @@
+/// <reference path="./phaser.d.ts" />
+// @ts-check
+
+/**
+ * @param {any} condition 
+ * @param {string} [message] 
+ * @asserts condition
+ */
+function assert(condition, message = "assertion failed") {
+    if (!condition) {
+        throw new Error(message)
+    }
+}
+
+/**
+ * @template T
+ * @param {T | null | undefined} object
+ * @returns {T}
+ */
+function ensure(object, message = "onject invalid") {
+    if (object === null || object === undefined) {
+        throw new Error(message)
+    }
+    return object
+}
+
 class Random {
+    /**
+     * @returns {number}
+     */
     static unit() {
         return Math.random()
-    }
+    } 
 
+    /**
+     * @returns {number}
+     */
     static centered() {
         return this.unit() * 2 - 1
     }
 
+    /**
+     * @param {number} lo
+     * @param {number} hi
+     * @returns {number}
+     */
     static range(lo, hi) {
         return this.unit() * (hi - lo) + lo
     }
 
+    /**
+     * @param {number} lo
+     * @param {number} hi
+     * @returns {number}
+     */
     static only(lo, hi) {
         return Math.trunc(this.unit() * (hi - lo + 1)) + lo
     }
 
+    /**
+     * @param {number} value
+     * @param {number} range
+     * @returns {number}
+     */
     static spread(value, range) {
         return this.range(value - range, value + range)
     }
 
+    /**
+     * @param {number} trueFrac
+     * @returns {boolean}
+     */
     static boolean(trueFrac = 0.5) {
         return this.unit() < trueFrac
     }
 
+    /**
+     * @template T
+     * @param {T[]} list
+     * @returns {T}
+     */
     static uniformElt(list) {
         return list[this.only(0, list.length - 1)]
     }
 
+    /**
+     * @template T
+     * @param {T[]} list
+     * @returns {T}
+     */
     static biasedElt(list) {
         let a = Random.unit()
         let idx = Math.trunc(a * a * list.length)
@@ -44,10 +105,16 @@ const Egg = {
     dropSpeed: 35
 }
 class EggControl {
+    /**
+     * @param {number} index
+     */
     static eggX(index) {
         return index * 160 + 80
     }
 
+    /**
+     * @param {Phaser.Scene} world
+     */
     constructor(world) {
         this.baseY = config.scale.height - 12
         this.sprite = []
@@ -58,6 +125,9 @@ class EggControl {
         }
     }
 
+    /**
+     * @returns {number | null}
+     */
     select() {
         for (let i = 0; i < 6; i++) {
             let k = Random.only(0, 7)
@@ -69,20 +139,33 @@ class EggControl {
         return null
     }
 
+    /**
+     * @param {number} index
+     * @param {number} y
+     */
     raise(index, y) {
         this.mode[index] = Egg.GRAB
         this.sprite[index].y = y
     }
 
+    /**
+     * @param {number} index
+     */
     release(index) {
         this.mode[index] = Egg.FALL
     }
 
+    /**
+     * @param {number} index
+     */
     stolen(index) {
         this.mode[index] = Egg.NONE
         this.sprite[index].visible = false
     }
 
+    /**
+     * @returns {number}
+     */
     aliveCount() {
         let n = 0
         for (let i = 0; i < this.mode.length; i++) {
@@ -93,6 +176,9 @@ class EggControl {
         return n
     }
 
+    /**
+     * @param {number} delta
+     */
     update(delta) {
         for (let i = 0; i < this.mode.length; i++) {
             if (this.mode[i] == Egg.FALL) {
@@ -125,6 +211,10 @@ const Grab = {
     0xFF22BB, 0x22BBFF, 0xBBFF22, 0xFFBB22, 0x22FFBB, 0xBB22FF]
 }
 class Grabber {
+    /**
+     * @param {Phaser.Scene} world
+     * @param {number} index
+     */
     constructor(world, index) {
         this.index = index
         this.sprite = world.add.sprite(100 + 50 * index, 100, "grabber")
@@ -136,6 +226,7 @@ class Grabber {
         this.curve = new Phaser.Curves.CubicBezier(x, x, x, x)
         this.t = 0
         this.speed = 1
+        /** @type {number | null} */
         this.targetEgg = null
     }
 
@@ -163,6 +254,11 @@ class Grabber {
         }
     }
 
+    /**
+     * @param {number} hLim
+     * @param {number} vLim
+     * @returns {Phaser.Math.Vector2}
+     */
     randomPoint(hLim, vLim) {
         let x = Random.range(hLim, config.scale.width - hLim)
         let y = config.scale.height * 0.4 + Random.centered() * (200 - vLim)
@@ -177,7 +273,7 @@ class Grabber {
 
     trackTargetEgg() {
         this.continueSwoop()
-        this.curve.p3.x = EggControl.eggX(this.targetEgg)
+        this.curve.p3.x = EggControl.eggX(ensure(this.targetEgg))
         this.mode = Grab.TRACKING
         console.log("tracking " + this.index)
     }
@@ -196,6 +292,9 @@ class Grabber {
         }
     }
 
+    /**
+     * @param {number} delta
+     */
     blast(delta) {
         this.sprite.setTint(Random.biasedElt(Grab.burnTint))
         this.health -= delta
@@ -208,6 +307,9 @@ class Grabber {
         this.sprite.clearTint()
     }
 
+    /**
+     * @param {number} delta
+     */
     move(delta) {
         if (this.mode == Grab.LOCKED) {
             this.sprite.y += Grab.descendSpeed * delta
@@ -215,10 +317,11 @@ class Grabber {
                 this.mode = Grab.GRABBED
             }
         } else if (this.mode == Grab.GRABBED) {
+            const target = ensure(this.targetEgg)
             this.sprite.y -= Grab.descendSpeed * delta
-            eggControl.raise(this.targetEgg, this.sprite.y)
+            eggControl.raise(target, this.sprite.y)
             if (this.sprite.y < -5) {
-                eggControl.stolen(this.targetEgg)
+                eggControl.stolen(target)
                 this.targetEgg = null
                 this.deactivate()
             }
@@ -234,6 +337,9 @@ class Grabber {
     }
 }
 class GrabberControl {
+    /**
+     * @param {Phaser.Scene} world
+     */
     constructor(world) {
         this.grabbers = []
         for (let i = 0; i < Grab.maxGrabbers; i++) {
@@ -246,6 +352,16 @@ class GrabberControl {
         this.graphics = world.add.graphics()
     }
 
+    /**
+     * @typedef {Object} HitData
+     * @property {number} id
+     * @property {number} y
+     */
+
+    /**
+     * @param {number} rayX
+     * @returns {HitData | null}
+     */
     traceRay(rayX) {
         let hitI = 0
         let hitY = 0
@@ -268,6 +384,9 @@ class GrabberControl {
         return null
     }
 
+    /**
+     * @param {number} id
+     */
     setHitIndex(id) {
         if (this.hitIndex != id && this.hitIndex >= 0) {
             this.grabbers[this.hitIndex].clearBlast()
@@ -275,6 +394,9 @@ class GrabberControl {
         this.hitIndex = id
     }
 
+    /**
+     * @param {number} id0
+     */
     setHit(id0) {
         let id = id0 - 100
         if (id >= 0 && id < this.grabbers.length) {
@@ -284,6 +406,9 @@ class GrabberControl {
         }
     }
 
+    /**
+     * @param {number} delta
+     */
     update(delta) {
         var inactiveIndex = -1
         this.graphics.clear()
@@ -325,6 +450,9 @@ class GrabberControl {
 }
 
 class EnemyControl {
+    /**
+     * @param {Phaser.Scene} world
+     */
     constructor(world) {
         this.grabbers = new GrabberControl(world)
     }
@@ -334,16 +462,25 @@ class EnemyControl {
         return gHit
     }
 
+    /**
+     * @param {number} id
+     */
     setHit(id) {
         this.grabbers.setHit(id)
     }
 
+    /**
+     * @param {number} delta
+     */
     update(delta) {
         this.grabbers.update(delta)
     }
 }
 
 class GameState {
+    /**
+     * @param {Phaser.Scene} world
+     */
     constructor(world) {
         for (let i = 0; i < 8; i++) {
             world.add.image(i * 160, config.scale.height, "bottom").setOrigin(0, 1)
@@ -355,6 +492,9 @@ class GameState {
 }
 
 class GunControl {
+    /**
+     * @param {Phaser.Scene} world
+     */
     constructor(world) {
         this.graphics = world.add.graphics()
         this.gun = world.add.sprite(200, config.scale.height - 40, "gun")
@@ -362,6 +502,10 @@ class GunControl {
         this.hitY = 0
     }
 
+    /**
+     * @param {boolean} toLeft
+     * @param {number} delta
+     */
     moveGun(toLeft, delta) {
         if (toLeft) {
             this.gun.x -= delta * p.speed
@@ -376,6 +520,9 @@ class GunControl {
         }
     }
 
+    /**
+     * @param {HitData | null} hit
+     */
     setHit(hit) {
         if (hit) {
             if (hit.id != this.hitId) {
@@ -390,6 +537,9 @@ class GunControl {
         }
     }
 
+    /**
+     * @param {boolean} draw
+     */
     drawRay(draw) {
         this.graphics.clear()
         if (draw) {
@@ -425,13 +575,22 @@ const p = {
     0xFF22BB, 0x22BBFF, 0xBBFF22, 0xFFBB22, 0x22FFBB, 0xBB22FF]
 }
 const game = new Phaser.Game(config);
+/** @type {GameState} */
 var gs;
+/** @type {GunControl} */
 var gunControl;
+/** @type {EnemyControl} */
 var enemyControl;
+/** @type {EggControl} */
 var eggControl;
+/** @type {Phaser.Types.Input.Keyboard.CursorKeys} */
 var cursorKeys;
+/** @type {Phaser.Input.Keyboard.Key} */
 var fireKey;
 
+/**
+ * @this {Phaser.Scene}
+ */
 function preload() {
     this.load.image("bottom", "assets/bottom.png")
     this.load.image("egg", "assets/egg.png")
@@ -439,15 +598,23 @@ function preload() {
     this.load.image("grabber", "assets/grabber3.png")
 }
 
+/**
+ * @this {Phaser.Scene}
+ */
 function create() {
     gs = new GameState(this)
     eggControl = new EggControl(this)
     gunControl = new GunControl(this)
     enemyControl = new EnemyControl(this)
-    cursorKeys = this.input.keyboard.createCursorKeys()
-    fireKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)
-} 
+    cursorKeys = ensure(this.input.keyboard).createCursorKeys()
+    fireKey = ensure(this.input.keyboard).addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)
+}
 
+/**
+ * @this {Phaser.Scene}
+ * @param {number} time
+ * @param {number} deltaMS
+ */
 function update(time, deltaMS) {
     let delta = deltaMS / 1000
     if (eggControl.aliveCount() == 0) {
