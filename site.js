@@ -606,8 +606,9 @@ function create() {
     eggControl = new EggControl(this)
     gunControl = new GunControl(this)
     enemyControl = new EnemyControl(this)
-    cursorKeys = ensure(this.input.keyboard).createCursorKeys()
-    fireKey = ensure(this.input.keyboard).addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)
+    const keyboard = ensure(this.input.keyboard)
+    cursorKeys = keyboard.createCursorKeys()
+    fireKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)
 }
 
 /**
