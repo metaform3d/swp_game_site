@@ -1,3 +1,5 @@
+// @ts-check
+
 class Spring2D {
   /**
    * @param {number} startX - Initial X position of the mass
@@ -61,6 +63,9 @@ class Spring2D {
 
   /**
    * Instantly snaps the spring to a specific position and stops all momentum.
+   *
+   * @param {number} x
+   * @param {number} y
    */
   teleport(x, y) {
     this.x = x;
